@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two-Tier Partner & Site Reallocation Logic</title>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+
+:root {
+  --bg:           #ffffff;
+  --bg2:          #f5f5f3;
+  --bg3:          #eeedea;
+  --border:       rgba(0,0,0,0.11);
+  --border2:      rgba(0,0,0,0.24);
+  --text:         #1a1a18;
+  --text2:        #5c5c58;
+  --text3:        #9a9a94;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+  --blue:         #3B8BD4;
+  --blue-light:   #d0e8f8;
+  --green:        #5aac44;
+  --green-light:  #eaf3de;
+  --green-txt:    #27500A;
+  --amber:        #E8B84B;
+  --amber-light:  #fdf3dc;
+  --amber-txt:    #633806;
+  --purple:       #7a6ed4;
+  --purple-light: #f0eefb;
+  --purple-txt:   #3c3489;
+  --red-light:    #fceaea;
+  --red-txt:      #791f1f;
+  --teal:         #2A9D8F;
+  --teal-light:   #d6f0ed;
+  --teal-txt:     #14524c;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#1e1e1c; --bg2:#272725; --bg3:#313130;
+    --border:rgba(255,255,255,0.10); --border2:rgba(255,255,255,0.22);
+    --text:#e8e6de; --text2:#a0a09a; --text3:#686864;
+    --blue:#5BA8E8; --blue-light:#042c53;
+    --green-light:#173404; --green-txt:#c0dd97;
+    --amber-light:#412402; --amber-txt:#FAC775;
+    --purple-light:#26215c; --purple-txt:#c4bff6;
+    --red-light:#501313; --red-txt:#f7c1c1;
+    --teal-light:#0d3330; --teal-txt:#a0e8e1;
+  }
+}
+
+body { font-family:var(--font); background:var(--bg); color:var(--text); padding:32px 40px; max-width:1040px; margin:0 auto; line-height:1.5; font-size:15px; }
+h1 { font-size:22px; font-weight:500; margin-bottom:4px; }
+.page-sub  { font-size:13px; color:var(--text2); margin-bottom:6px; }
+.page-desc { font-size:13px; color:var(--text2); margin-bottom:22px; line-height:1.6; max-width:780px; }
+
+/* controls */
+.controls { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; padding:14px 16px; background:var(--bg2); border:0.5px solid var(--border); border-radius:var(--radius-lg); }
+@media(max-width:720px){ .controls{grid-template-columns:1fr 1fr;} }
+.ctrl-group { display:flex; flex-direction:column; gap:3px; }
+.ctrl-label { font-size:11px; color:var(--text2); line-height:1.4; font-weight:500; }
+.ctrl-sub   { font-size:10px; color:var(--text3); }
+.ctrl-row   { display:flex; align-items:center; gap:8px; margin-top:3px; }
+.ctrl-val   { font-size:12px; font-weight:700; min-width:36px; text-align:right; color:var(--text); }
+input[type=range] { flex:1; -webkit-appearance:none; appearance:none; height:4px; background:var(--bg3); border-radius:2px; outline:none; cursor:pointer; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:17px; height:17px; background:var(--blue); border-radius:50%; border:2px solid var(--bg); cursor:pointer; }
+input[type=range]::-moz-range-thumb { width:17px; height:17px; background:var(--blue); border-radius:50%; border:2px solid var(--bg); cursor:pointer; }
+
+/* timeline */
+.t-bar { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text2); margin-bottom:16px; }
+.timeline { flex:1; height:6px; background:var(--bg3); border:0.5px solid var(--border); border-radius:3px; position:relative; overflow:visible; }
+.tl-marker { position:absolute; top:-5px; width:2px; height:16px; border-radius:1px; }
+.tl-t1 { background:#E8B84B; }
+.tl-t2 { background:var(--purple); }
+.tl-label { position:absolute; font-size:10px; top:14px; transform:translateX(-50%); white-space:nowrap; color:var(--text2); }
+
+/* step buttons */
+.step-buttons { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.step-btn { font-size:13px; padding:8px 16px; border:0.5px solid var(--border2); border-radius:var(--radius-md); background:var(--bg); color:var(--text); cursor:pointer; transition:background .12s,border-color .12s,color .12s; font-family:var(--font); }
+.step-btn:hover { background:var(--bg2); }
+.step-btn.active { border-color:var(--blue); background:var(--blue-light); color:var(--blue); font-weight:500; }
+
+/* status */
+.status-box { border:0.5px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; margin-bottom:16px; min-height:52px; }
+.status-title { font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:4px; }
+.status-msg { font-size:13px; color:var(--text); line-height:1.55; }
+
+/* main section */
+.main-section { border:0.5px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:14px; }
+.main-header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:0.5px solid var(--border); flex-wrap:wrap; }
+.step-badge { font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px; letter-spacing:.03em; flex-shrink:0; }
+.badge-pre1  { background:var(--bg3); color:var(--text2); }
+.badge-t1    { background:var(--amber-light); color:var(--amber-txt); }
+.badge-pre2  { background:var(--teal-light); color:var(--teal-txt); }
+.badge-t2    { background:var(--purple-light); color:var(--purple-txt); }
+.section-label { font-size:14px; font-weight:500; color:var(--text); }
+.section-desc  { font-size:12px; color:var(--text2); margin-left:auto; text-align:right; max-width:320px; line-height:1.4; }
+.section-body  { padding:16px; }
+
+/* partners grid */
+.partners-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media(max-width:580px){ .partners-grid{grid-template-columns:1fr;} }
+.partner-card { background:var(--bg2); border:0.5px solid var(--border); border-radius:var(--radius-md); overflow:hidden; display:flex; flex-direction:column; }
+.partner-header { padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:0.5px solid var(--border); }
+.partner-name { font-size:13px; font-weight:500; color:var(--text); }
+.partner-total { font-size:11px; color:var(--text2); text-align:right; line-height:1.4; max-width:200px; }
+.sites-inner { padding:12px 14px; display:flex; flex-direction:column; gap:18px; flex:1; }
+
+/* site block */
+.site-block { display:flex; flex-direction:column; gap:6px; }
+.site-name-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:2px; }
+.site-name { font-size:12px; font-weight:600; color:var(--text); }
+
+/* dual bar rows */
+.bar-row { display:flex; align-items:center; gap:8px; }
+.bar-row-label { font-size:10px; color:var(--text3); width:64px; flex-shrink:0; text-align:right; line-height:1.3; }
+.bar-wrap { flex:1; position:relative; height:13px; border-radius:5px; overflow:hidden; background:var(--bg3); border:0.5px solid var(--border); }
+.bar-seg { position:absolute; top:0; height:100%; transition:width .45s ease, left .45s ease; will-change:width,left; }
+/* allocation bar segments */
+.seg-orig   { background:var(--blue); }
+.seg-t1     { background:var(--green); }
+.seg-t2     { background:var(--purple); }
+/* scheduling bar segments */
+.seg-sched  { background:var(--teal); }
+.seg-unsched{ background:var(--amber); opacity:.55; }
+.bar-row-val { font-size:11px; color:var(--text2); width:68px; flex-shrink:0; text-align:right; white-space:nowrap; }
+
+/* audit chips */
+.change-log { display:flex; flex-wrap:wrap; gap:5px; min-height:20px; margin-top:3px; }
+.chip { font-size:10px; font-weight:500; padding:2px 8px; border-radius:10px; white-space:nowrap; transition:opacity .3s ease, transform .3s ease; opacity:0; transform:translateY(3px); }
+.chip.show { opacity:1; transform:translateY(0); }
+.chip-orig    { background:var(--bg3); color:var(--text2); }
+.chip-t1-gain { background:var(--green-light); color:var(--green-txt); }
+.chip-t1-lose { background:var(--amber-light); color:var(--amber-txt); }
+.chip-expert  { background:var(--teal-light); color:var(--teal-txt); }
+.chip-t2-gain { background:var(--purple-light); color:var(--purple-txt); }
+.chip-t2-lose { background:var(--red-light); color:var(--red-txt); }
+
+/* card legend */
+.card-legend { display:flex; flex-wrap:wrap; gap:10px; padding:9px 14px; border-top:0.5px solid var(--border); background:var(--bg2); }
+.leg-item { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text2); }
+.leg-sw { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+
+/* summary */
+hr.div { border:none; border-top:0.5px solid var(--border); margin:18px 0; }
+.summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+@media(max-width:640px){ .summary-grid{grid-template-columns:1fr 1fr;} }
+.sum-card { background:var(--bg2); border-radius:var(--radius-md); padding:12px 14px; }
+.sum-label { font-size:11px; color:var(--text2); margin-bottom:4px; }
+.sum-val   { font-size:22px; font-weight:500; color:var(--text); }
+.sum-sub   { font-size:11px; color:var(--text3); margin-top:2px; line-height:1.3; }
+</style>
+</head>
+<body>
+
+<h1>Two-tier reallocation logic</h1>
+<p class="page-sub">UR-001 &nbsp;/&nbsp; SW-002</p>
+<p class="page-desc">Step through each tab to see how partner and site allocations shift as Tier 1 (intra-partner) and Tier 2 (cross-partner) rules fire. Each site shows two bars: <strong>Allocation source</strong> (where the hours came from) and <strong>Scheduling status</strong> (how many are scheduled vs. unscheduled).</p>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label">JDA Site B → Site A</span>
+    <span class="ctrl-sub">% of Site B unscheduled (8 hrs)</span>
+    <div class="ctrl-row">
+      <input type="range" min="0" max="100" step="10" value="50" id="sl-jda-t1" oninput="update()">
+      <span class="ctrl-val" id="lbl-jda-t1">50%</span>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">INTUIT Site A → Site B</span>
+    <span class="ctrl-sub">% of Site A unscheduled (10 hrs)</span>
+    <div class="ctrl-row">
+      <input type="range" min="0" max="100" step="10" value="50" id="sl-int-t1" oninput="update()">
+      <span class="ctrl-val" id="lbl-int-t1">50%</span>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Tier 2 cross-partner release</span>
+    <span class="ctrl-sub">% of remaining unscheduled</span>
+    <div class="ctrl-row">
+      <input type="range" min="0" max="100" step="10" value="100" id="sl-t2-pct" oninput="update()">
+      <span class="ctrl-val" id="lbl-t2-pct">100%</span>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Tier 1 threshold</span>
+    <span class="ctrl-sub">Days before day-of</span>
+    <div class="ctrl-row">
+      <input type="range" min="2" max="10" step="1" value="5" id="sl-t1-days" oninput="update()">
+      <span class="ctrl-val" id="lbl-t1-days">T-5</span>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Tier 2 threshold</span>
+    <span class="ctrl-sub">Days before day-of</span>
+    <div class="ctrl-row">
+      <input type="range" min="1" max="5" step="1" value="2" id="sl-t2-days" oninput="update()">
+      <span class="ctrl-val" id="lbl-t2-days">T-2</span>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline -->
+<div class="t-bar">
+  <span>Day-of</span>
+  <div class="timeline">
+    <div class="tl-marker tl-t2" id="tl-t2" style="left:22%"><span class="tl-label" id="lbl-tl-t2">T-2</span></div>
+    <div class="tl-marker tl-t1" id="tl-t1" style="left:58%"><span class="tl-label" id="lbl-tl-t1">T-5</span></div>
+  </div>
+  <span>Planning horizon</span>
+</div>
+
+<!-- Step buttons -->
+<div class="step-buttons">
+  <button class="step-btn active" onclick="setStep(0)">Pre-Tier 1 reallocation</button>
+  <button class="step-btn" onclick="setStep(1)">Tier 1 fires — site reallocation</button>
+  <button class="step-btn" onclick="setStep(2)">Pre-Tier 2 reallocation</button>
+  <button class="step-btn" onclick="setStep(3)">Tier 2 fires — partner reallocation</button>
+</div>
+
+<!-- Status -->
+<div class="status-box">
+  <div class="status-title">Current state</div>
+  <div class="status-msg" id="status-msg">Loading…</div>
+</div>
+
+<!-- MAIN SECTION — header updates per tab -->
+<div class="main-section">
+  <div class="main-header">
+    <span class="step-badge" id="main-badge">Baseline</span>
+    <span class="section-label" id="main-label">Pre-Tier 1 reallocation</span>
+    <span class="section-desc" id="main-desc">Original allocations and scheduling status before any rules have fired</span>
+  </div>
+  <div class="section-body">
+    <div class="partners-grid">
+
+      <!-- ── JDA USA ── -->
+      <div class="partner-card">
+        <div class="partner-header">
+          <span class="partner-name">JDA USA</span>
+          <span class="partner-total" id="jda-ptotal">Partner allocation: 50 hrs</span>
+        </div>
+        <div class="sites-inner">
+
+          <!-- JDA Site A -->
+          <div class="site-block">
+            <div class="site-name-row">
+              <span class="site-name">Site A — Phoenix</span>
+            </div>
+            <!-- Allocation source bar -->
+            <div class="bar-row">
+              <span class="bar-row-label">Allocation<br>source</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-orig" id="jda-a-ao" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-t1"   id="jda-a-at1" style="left:100%;width:0%"></div>
+                <div class="bar-seg seg-t2"   id="jda-a-at2" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="jda-a-alloc-lbl">40 hrs total</span>
+            </div>
+            <!-- Scheduling status bar -->
+            <div class="bar-row">
+              <span class="bar-row-label">Scheduling<br>status</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-sched"  id="jda-a-ss" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-unsched" id="jda-a-su" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="jda-a-sched-lbl">40 / 40 scheduled</span>
+            </div>
+            <div class="change-log" id="jda-a-chips"></div>
+          </div>
+
+          <!-- JDA Site B -->
+          <div class="site-block">
+            <div class="site-name-row">
+              <span class="site-name">Site B — Denver</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Allocation<br>source</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-orig" id="jda-b-ao" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-t2"   id="jda-b-at2" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="jda-b-alloc-lbl">10 hrs total</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Scheduling<br>status</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-sched"  id="jda-b-ss" style="left:0%;width:20%"></div>
+                <div class="bar-seg seg-unsched" id="jda-b-su" style="left:20%;width:80%"></div>
+              </div>
+              <span class="bar-row-val" id="jda-b-sched-lbl">2 / 10 scheduled</span>
+            </div>
+            <div class="change-log" id="jda-b-chips"></div>
+          </div>
+
+        </div>
+        <div class="card-legend">
+          <div class="leg-item"><div class="leg-sw" style="background:var(--blue)"></div>Original allocation</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--green)"></div>Tier 1 gain</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--purple)"></div>Tier 2 gain</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--teal)"></div>Scheduled</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--amber);opacity:.7"></div>Unscheduled</div>
+        </div>
+      </div>
+
+      <!-- ── INTUIT USA ── -->
+      <div class="partner-card">
+        <div class="partner-header">
+          <span class="partner-name">INTUIT USA</span>
+          <span class="partner-total" id="int-ptotal">Partner allocation: 44 hrs</span>
+        </div>
+        <div class="sites-inner">
+
+          <!-- INTUIT Site A -->
+          <div class="site-block">
+            <div class="site-name-row">
+              <span class="site-name">Site A — Dallas</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Allocation<br>source</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-orig" id="int-a-ao" style="left:0%;width:100%"></div>
+              </div>
+              <span class="bar-row-val" id="int-a-alloc-lbl">20 hrs total</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Scheduling<br>status</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-sched"  id="int-a-ss" style="left:0%;width:50%"></div>
+                <div class="bar-seg seg-unsched" id="int-a-su" style="left:50%;width:50%"></div>
+              </div>
+              <span class="bar-row-val" id="int-a-sched-lbl">10 / 20 scheduled</span>
+            </div>
+            <div class="change-log" id="int-a-chips"></div>
+          </div>
+
+          <!-- INTUIT Site B -->
+          <div class="site-block">
+            <div class="site-name-row">
+              <span class="site-name">Site B — Austin</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Allocation<br>source</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-orig" id="int-b-ao" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-t1"   id="int-b-at1" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="int-b-alloc-lbl">24 hrs total</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Scheduling<br>status</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-sched"  id="int-b-ss" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-unsched" id="int-b-su" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="int-b-sched-lbl">24 / 24 scheduled</span>
+            </div>
+            <div class="change-log" id="int-b-chips"></div>
+          </div>
+
+        </div>
+        <div class="card-legend">
+          <div class="leg-item"><div class="leg-sw" style="background:var(--blue)"></div>Original allocation</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--green)"></div>Tier 1 gain</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--purple)"></div>Tier 2 gain</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--teal)"></div>Scheduled</div>
+          <div class="leg-item"><div class="leg-sw" style="background:var(--amber);opacity:.7"></div>Unscheduled</div>
+        </div>
+      </div>
+
+    </div><!-- /partners-grid -->
+  </div>
+</div>
+
+<hr class="div">
+
+<!-- Summary -->
+<div class="summary-grid">
+  <div class="sum-card">
+    <div class="sum-label">WG total allocation</div>
+    <div class="sum-val" id="sum-wg">94 hrs</div>
+    <div class="sum-sub">Across all partners &amp; sites</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Hours scheduled</div>
+    <div class="sum-val" id="sum-sched">76 hrs</div>
+    <div class="sum-sub" id="sum-sched-sub">of WG total</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Hours unscheduled</div>
+    <div class="sum-val" id="sum-unsched">18 hrs</div>
+    <div class="sum-sub" id="sum-unsched-sub">remaining capacity</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Hours reallocated</div>
+    <div class="sum-val" id="sum-realloc">0 hrs</div>
+    <div class="sum-sub" id="sum-realloc-sub">via Tier 1 + Tier 2 rules</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── fixed baseline data ── */
+const ALLOC = { jdaA:40, jdaB:10, intA:20, intB:24 };
+const JDA_TOT     = ALLOC.jdaA + ALLOC.jdaB;  // 50
+const INT_TOT     = ALLOC.intA + ALLOC.intB;   // 44
+const JDA_A_SHARE = ALLOC.jdaA / JDA_TOT;      // 0.8
+const JDA_B_SHARE = ALLOC.jdaB / JDA_TOT;      // 0.2
+
+/* step 0: original scheduled hours */
+const S0 = { jdaA:40, jdaB:2, intA:10, intB:24 };
+
+/* expert scheduling between T1 and T2 (fixed per spec) */
+/* results in: jdaA 44/44, jdaB 6/6, intA 10/15, intB 30/30 */
+const EXPERT = { jdaA:4, jdaB:4, intA:0, intB:6 };
+
+let currentStep = 0;
+
+/* ── tab metadata ── */
+const TAB_META = [
+  { badgeCls:'badge-pre1', badge:'Baseline',    label:'Pre-Tier 1 reallocation',              desc:'Original allocations and scheduling status before any rules have fired' },
+  { badgeCls:'badge-t1',   badge:'Tier 1',      label:'Tier 1 fires — site reallocation',     desc:'Allocation transfers between sites within the same partner at T-{T1}' },
+  { badgeCls:'badge-pre2', badge:'Pre-Tier 2',  label:'Pre-Tier 2 reallocation',              desc:'Expert scheduling has occurred since Tier 1 fired — snapshot before Tier 2' },
+  { badgeCls:'badge-t2',   badge:'Tier 2',      label:'Tier 2 fires — partner reallocation',  desc:'Remaining unscheduled hours reallocated cross-partner at T-{T2}' },
+];
+
+/* ── helpers ── */
+function r(a, b) { return b === 0 ? 0 : Math.max(0, Math.min(100, Math.round(a / b * 100))); }
+
+/* Always write both left AND width — prevents stale positions when switching tabs */
+function seg(id, wPct, lPct) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const l = Math.max(0, Math.min(100, lPct));
+  const w = Math.max(0, Math.min(100 - l, wPct));
+  el.style.left  = l + '%';
+  el.style.width = w + '%';
+}
+
+function chips(containerId, arr) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+  arr.forEach(c => {
+    const sp = document.createElement('span');
+    sp.className = 'chip ' + c.cls + ' show';
+    sp.textContent = c.text;
+    el.appendChild(sp);
+  });
+}
+
+function txt(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+function html(id, v) { const el = document.getElementById(id); if (el) el.innerHTML = v; }
+
+function setStep(s) {
+  currentStep = s;
+  document.querySelectorAll('.step-btn').forEach((b, i) => b.classList.toggle('active', i === s));
+  update();
+}
+
+function update() {
+  /* read sliders */
+  const jdaT1Pct = +document.getElementById('sl-jda-t1').value / 100;
+  const intT1Pct = +document.getElementById('sl-int-t1').value / 100;
+  const t2RelPct = +document.getElementById('sl-t2-pct').value / 100;
+  const t1Days   = +document.getElementById('sl-t1-days').value;
+  const t2Days   = +document.getElementById('sl-t2-days').value;
+
+  txt('lbl-jda-t1',  Math.round(jdaT1Pct * 100) + '%');
+  txt('lbl-int-t1',  Math.round(intT1Pct * 100) + '%');
+  txt('lbl-t2-pct',  Math.round(t2RelPct * 100) + '%');
+  txt('lbl-t1-days', 'T-' + t1Days);
+  txt('lbl-t2-days', 'T-' + t2Days);
+  txt('lbl-tl-t1',   'T-' + t1Days);
+  txt('lbl-tl-t2',   'T-' + t2Days);
+
+  /* timeline positions */
+  const t1pos = Math.min(88, Math.round(t1Days / 12 * 88));
+  const t2pos = Math.max(5, Math.min(t1pos - 12, Math.round(t2Days / 12 * 88)));
+  document.getElementById('tl-t1').style.left = t1pos + '%';
+  document.getElementById('tl-t2').style.left = t2pos + '%';
+
+  /* ── Tier 1 maths ── */
+  const jdaBUnsched = ALLOC.jdaB - S0.jdaB;              // 8
+  const intAUnsched = ALLOC.intA - S0.intA;              // 10
+  const jdaT1Xfer   = Math.round(jdaBUnsched * jdaT1Pct); // default 4
+  const intT1Xfer   = Math.round(intAUnsched * intT1Pct);  // default 5
+
+  const aT1 = {
+    jdaA: ALLOC.jdaA + jdaT1Xfer,
+    jdaB: ALLOC.jdaB - jdaT1Xfer,
+    intA: ALLOC.intA - intT1Xfer,
+    intB: ALLOC.intB + intT1Xfer,
+  };
+  const sT1 = { ...S0 }; // no expert scheduling yet
+
+  /* ── Pre-T2 maths (expert scheduling) ── */
+  const expJdaA = Math.min(EXPERT.jdaA, aT1.jdaA - sT1.jdaA);
+  const expJdaB = Math.min(EXPERT.jdaB, aT1.jdaB - sT1.jdaB);
+  const expIntB = Math.min(EXPERT.intB, aT1.intB - sT1.intB);
+
+  const sPre2 = {
+    jdaA: sT1.jdaA + expJdaA,
+    jdaB: sT1.jdaB + expJdaB,
+    intA: sT1.intA,               // no change
+    intB: sT1.intB + expIntB,
+  };
+  const intBAllocPre2 = Math.max(aT1.intB, sPre2.intB);
+
+  /* ── Tier 2 maths ── */
+  const intAUnschedPre2 = aT1.intA - sPre2.intA;                // 5
+  const intT2Release    = Math.round(intAUnschedPre2 * t2RelPct); // 5
+  const jdaAT2 = Math.round(intT2Release * JDA_A_SHARE);          // 4
+  const jdaBT2 = intT2Release - jdaAT2;                           // 1
+
+  const aT2 = {
+    jdaA: aT1.jdaA + jdaAT2,
+    jdaB: aT1.jdaB + jdaBT2,
+    intA: aT1.intA - intT2Release,
+    intB: intBAllocPre2,
+  };
+  const sT2 = { ...sPre2 }; // no new scheduling at T2 step
+
+  /* ── choose state for this step ── */
+  const s = currentStep;
+  const alloc = s === 0 ? {...ALLOC} : s === 1 ? {...aT1} : s <= 2 ? {...aT1} : {...aT2};
+  const sched = s === 0 ? {...S0}    : s === 1 ? {...sT1} : s === 2 ? {...sPre2} : {...sT2};
+  const intBAlloc = s === 0 ? ALLOC.intB : s <= 2 ? intBAllocPre2 : aT2.intB;
+
+  const wgTotal    = alloc.jdaA + alloc.jdaB + alloc.intA + intBAlloc;
+  const totSched   = sched.jdaA + sched.jdaB + sched.intA + sched.intB;
+  const totUnsched = wgTotal - totSched;
+  const realloc    = s === 0 ? 0 : s <= 2 ? jdaT1Xfer + intT1Xfer : jdaT1Xfer + intT1Xfer + intT2Release;
+
+  /* ── update section header ── */
+  const meta = TAB_META[s];
+  const badge = document.getElementById('main-badge');
+  badge.textContent = meta.badge;
+  badge.className   = 'step-badge ' + meta.badgeCls;
+  txt('main-label', meta.label);
+  txt('main-desc',  meta.desc.replace('{T1}', 'T-' + t1Days).replace('{T2}', 'T-' + t2Days));
+
+  /* ══════════════════════════════════════════
+     DUAL BAR RENDERING
+     Bar 1 (allocation source): 100% = current total allocation for this site.
+       Segments: [original allocation | Tier 1 gain | Tier 2 gain]
+     Bar 2 (scheduling status): same 100% scale.
+       Segments: [scheduled | unscheduled]
+     All segment positions always fully written on every render.
+  ══════════════════════════════════════════ */
+
+  /* ─── JDA Site A ─── */
+  {
+    const a    = alloc.jdaA;
+    const sc   = sched.jdaA;
+    const t1g  = s >= 1 ? jdaT1Xfer : 0;
+    const t2g  = s >= 3 ? jdaAT2    : 0;
+    const origW = r(ALLOC.jdaA, a);   // original allocation's share of current total
+    const t1W   = r(t1g, a);
+    const t2W   = r(t2g, a);
+    const scW   = r(sc, a);
+    const unW   = Math.max(0, 100 - scW);
+
+    /* allocation bar */
+    seg('jda-a-ao',  origW,       0);
+    seg('jda-a-at1', t1W,         origW);
+    seg('jda-a-at2', t2W,         origW + t1W);
+    /* scheduling bar */
+    seg('jda-a-ss',  scW,  0);
+    seg('jda-a-su',  unW,  scW);
+
+    txt('jda-a-alloc-lbl', a + ' hrs total');
+    txt('jda-a-sched-lbl', sc + ' / ' + a + ' scheduled');
+
+    chips('jda-a-chips',
+      s === 0 ? [
+        { text:`Original allocation: ${ALLOC.jdaA} hrs · ${S0.jdaA} scheduled (100%)`, cls:'chip-orig' },
+      ] :
+      s === 1 ? [
+        { text:`Original: ${ALLOC.jdaA} hrs`, cls:'chip-orig' },
+        { text:`+${jdaT1Xfer} hrs received from Site B via Tier 1 (${Math.round(jdaT1Pct*100)}% of ${jdaBUnsched} unscheduled)`, cls:'chip-t1-gain' },
+        { text:`${sc} / ${a} hrs — ${a - sc} hrs newly available to schedule`, cls:'chip-t1-gain' },
+      ] :
+      s === 2 ? [
+        { text:`Allocation: ${a} hrs (${ALLOC.jdaA} original + ${jdaT1Xfer} from Tier 1)`, cls:'chip-orig' },
+        { text:`+${expJdaA} hrs scheduled by experts since Tier 1 → ${sc}/${a} (full)`, cls:'chip-expert' },
+      ] : [
+        { text:`Allocation: ${aT1.jdaA} hrs pre-T2 (${ALLOC.jdaA} orig + ${jdaT1Xfer} T1)`, cls:'chip-orig' },
+        { text:`+${jdaAT2} hrs received from INTUIT via Tier 2 (${Math.round(JDA_A_SHARE*100)}% of ${intT2Release} hrs)`, cls:'chip-t2-gain' },
+        { text:`New allocation: ${a} hrs · ${sc} scheduled · ${a - sc} newly available`, cls:'chip-t2-gain' },
+      ]
+    );
+  }
+
+  /* ─── JDA Site B ─── */
+  {
+    const a    = alloc.jdaB;
+    const sc   = sched.jdaB;
+    const t2g  = s >= 3 ? jdaBT2 : 0;
+    const origW = r(ALLOC.jdaB - (s >= 1 ? jdaT1Xfer : 0), a); // original MINUS what was sent away
+    /* For allocation bar: original allocation is what stays (after T1 sends some away).
+       In step 0 bar shows the full original 10 hrs as 100%.
+       In step 1+ the bar is scaled to the reduced allocation; original segment fills it all
+       (since the sent-away hours are no longer part of this site's allocation). */
+    const t2W  = r(t2g, a);
+    const scW  = r(sc, a);
+    const unW  = Math.max(0, 100 - scW);
+
+    /* allocation bar: original fills current alloc, plus T2 gain on top */
+    seg('jda-b-ao',  100 - t2W, 0);   // original fills whatever isn't T2
+    seg('jda-b-at2', t2W, 100 - t2W);
+    /* scheduling bar */
+    seg('jda-b-ss', scW, 0);
+    seg('jda-b-su', unW, scW);
+
+    txt('jda-b-alloc-lbl', a + ' hrs total');
+    txt('jda-b-sched-lbl', sc + ' / ' + a + ' scheduled');
+
+    chips('jda-b-chips',
+      s === 0 ? [
+        { text:`Original allocation: ${ALLOC.jdaB} hrs · ${S0.jdaB} scheduled · ${jdaBUnsched} unscheduled`, cls:'chip-orig' },
+      ] :
+      s === 1 ? [
+        { text:`Original: ${ALLOC.jdaB} hrs`, cls:'chip-orig' },
+        { text:`−${jdaT1Xfer} hrs sent to Site A via Tier 1 (${Math.round(jdaT1Pct*100)}% of ${jdaBUnsched} unscheduled)`, cls:'chip-t1-lose' },
+        { text:`Reduced allocation: ${a} hrs · ${sc} scheduled · ${a - sc} unscheduled`, cls:'chip-t1-lose' },
+      ] :
+      s === 2 ? [
+        { text:`Allocation: ${a} hrs after Tier 1 reduction`, cls:'chip-orig' },
+        { text:`+${expJdaB} hrs scheduled by experts since Tier 1 → ${sc}/${a} (full)`, cls:'chip-expert' },
+      ] : [
+        { text:`Allocation: ${aT1.jdaB} hrs pre-T2`, cls:'chip-orig' },
+        { text:`+${jdaBT2} hr received from INTUIT via Tier 2 (${Math.round(JDA_B_SHARE*100)}% of ${intT2Release} hrs)`, cls:'chip-t2-gain' },
+        { text:`New allocation: ${a} hrs · ${sc} scheduled · ${a - sc} hr newly available`, cls:'chip-t2-gain' },
+      ]
+    );
+  }
+
+  txt('jda-ptotal',
+    s === 0 ? `Partner allocation: ${JDA_TOT} hrs` :
+    s === 1 ? `Partner allocation: ${JDA_TOT} hrs (internally reallocated between sites)` :
+    s === 2 ? `Partner allocation: ${JDA_TOT} hrs` :
+              `Partner allocation: ${aT2.jdaA + aT2.jdaB} hrs (+${intT2Release} from INTUIT via Tier 2)`);
+
+  /* ─── INTUIT Site A ─── */
+  {
+    const a    = alloc.intA;
+    const sc   = sched.intA;
+    const origW = 100; // allocation bar always shows 100% original (shrinks when T1/T2 reduce it, bar rescales)
+    const scW  = r(sc, a);
+    const unW  = s < 3 ? Math.max(0, 100 - scW) : 0; // T2 zeroes the unscheduled (released)
+
+    seg('int-a-ao', 100, 0); // always fully original (no gains for Site A)
+    seg('int-a-ss', scW, 0);
+    seg('int-a-su', unW, scW);
+
+    txt('int-a-alloc-lbl', a + ' hrs total');
+    txt('int-a-sched-lbl', sc + ' / ' + a + ' scheduled');
+
+    chips('int-a-chips',
+      s === 0 ? [
+        { text:`Original allocation: ${ALLOC.intA} hrs · ${S0.intA} scheduled · ${intAUnsched} unscheduled`, cls:'chip-orig' },
+      ] :
+      s === 1 ? [
+        { text:`Original: ${ALLOC.intA} hrs`, cls:'chip-orig' },
+        { text:`−${intT1Xfer} hrs sent to Site B via Tier 1 (${Math.round(intT1Pct*100)}% of ${intAUnsched} unscheduled)`, cls:'chip-t1-lose' },
+        { text:`Reduced allocation: ${a} hrs · ${sc} scheduled · ${a - sc} unscheduled`, cls:'chip-t1-lose' },
+      ] :
+      s === 2 ? [
+        { text:`Allocation: ${a} hrs after Tier 1 · ${sc} scheduled · ${a - sc} unscheduled`, cls:'chip-orig' },
+        { text:`No additional experts scheduled — ${intAUnschedPre2} hrs remain unscheduled (eligible for Tier 2)`, cls:'chip-t1-lose' },
+      ] : [
+        { text:`Pre-T2: ${sPre2.intA}/${aT1.intA} hrs · ${intAUnschedPre2} unscheduled`, cls:'chip-orig' },
+        { text:`−${intT2Release} hrs released to JDA via Tier 2 (${Math.round(t2RelPct*100)}% of ${intAUnschedPre2})`, cls:'chip-t2-lose' },
+        { text:`Allocation reduced to ${a} hrs — all ${sc} hrs now scheduled (fully utilised)`, cls:'chip-t2-lose' },
+      ]
+    );
+  }
+
+  /* ─── INTUIT Site B ─── */
+  {
+    const a    = intBAlloc;
+    const sc   = sched.intB;
+    const t1g  = s >= 1 ? intT1Xfer : 0;
+    const origW = r(ALLOC.intB, a);
+    const t1W   = r(t1g, a);
+    const scW   = r(sc, a);
+    const unW   = Math.max(0, 100 - scW);
+
+    /* allocation bar */
+    seg('int-b-ao',  origW, 0);
+    seg('int-b-at1', t1W,   origW);
+    /* scheduling bar */
+    seg('int-b-ss', scW, 0);
+    seg('int-b-su', unW, scW);
+
+    txt('int-b-alloc-lbl', a + ' hrs total');
+    txt('int-b-sched-lbl', sc + ' / ' + a + ' scheduled');
+
+    chips('int-b-chips',
+      s === 0 ? [
+        { text:`Original allocation: ${ALLOC.intB} hrs · ${S0.intB} scheduled (100%)`, cls:'chip-orig' },
+      ] :
+      s === 1 ? [
+        { text:`Original: ${ALLOC.intB} hrs`, cls:'chip-orig' },
+        { text:`+${intT1Xfer} hrs received from Site A via Tier 1 (${Math.round(intT1Pct*100)}% of ${intAUnsched} unscheduled)`, cls:'chip-t1-gain' },
+        { text:`${sc} / ${a} hrs · ${a - sc} hrs newly available to schedule`, cls:'chip-t1-gain' },
+      ] :
+      s === 2 ? [
+        { text:`Allocation: ${a} hrs (${ALLOC.intB} original + ${intT1Xfer} from Tier 1)`, cls:'chip-orig' },
+        { text:`+${expIntB} hrs scheduled by experts since Tier 1 → ${sc}/${a} (full)`, cls:'chip-expert' },
+      ] : [
+        { text:`${sc}/${a} hrs — fully scheduled, no change in Tier 2`, cls:'chip-orig' },
+        { text:`Tier 2 only released Site A's unscheduled hours — Site B not affected`, cls:'chip-orig' },
+      ]
+    );
+  }
+
+  txt('int-ptotal',
+    s === 0 ? `Partner allocation: ${INT_TOT} hrs` :
+    s === 1 ? `Partner allocation: ${INT_TOT} hrs (internally reallocated between sites)` :
+    s === 2 ? `Partner allocation: ${INT_TOT} hrs` :
+              `Partner allocation: ${aT2.intA + aT2.intB} hrs (−${intT2Release} released to JDA via Tier 2)`);
+
+  /* ── Summary ── */
+  txt('sum-wg',           wgTotal + ' hrs');
+  txt('sum-sched',        totSched + ' hrs');
+  txt('sum-sched-sub',    r(totSched, wgTotal) + '% of ' + wgTotal + ' hr WG total');
+  txt('sum-unsched',      totUnsched + ' hrs');
+  txt('sum-unsched-sub',  totUnsched === 0 ? 'fully scheduled' : s < 3 ? 'eligible for Tier 2 release' : 'remaining after Tier 2');
+  txt('sum-realloc',      realloc + ' hrs');
+  txt('sum-realloc-sub',
+    s === 0 ? 'no rules fired yet' :
+    s === 1 ? `T1: ${jdaT1Xfer} hrs (JDA) + ${intT1Xfer} hrs (INTUIT)` :
+    s === 2 ? `T1: ${jdaT1Xfer} hrs (JDA) + ${intT1Xfer} hrs (INTUIT)` :
+              `T1: ${jdaT1Xfer + intT1Xfer} hrs · T2: ${intT2Release} hrs`);
+
+  /* ── Status message ── */
+  const msgs = [
+    `Pre-Tier 1 reallocation: JDA Site A is fully scheduled at ${S0.jdaA}/${ALLOC.jdaA} hrs. JDA Site B has ${jdaBUnsched} hrs unscheduled out of ${ALLOC.jdaB} hrs allocated. INTUIT Site A has ${intAUnsched} hrs unscheduled out of ${ALLOC.intA} hrs. INTUIT Site B is fully scheduled at ${S0.intB}/${ALLOC.intB} hrs. Tier 1 configured to release ${Math.round(jdaT1Pct*100)}% of JDA Site B unscheduled (= ${jdaT1Xfer} hrs) and ${Math.round(intT1Pct*100)}% of INTUIT Site A unscheduled (= ${intT1Xfer} hrs). Fires at T-${t1Days}.`,
+    `Tier 1 fired at T-${t1Days}. JDA: ${jdaT1Xfer} hrs moved Site B → Site A. Site A allocation now ${aT1.jdaA} hrs (was ${ALLOC.jdaA}); Site B now ${aT1.jdaB} hrs (was ${ALLOC.jdaB}). INTUIT: ${intT1Xfer} hrs moved Site A → Site B. Site A allocation now ${aT1.intA} hrs; Site B now ${aT1.intB} hrs. Experts have not yet scheduled against the newly available hours.`,
+    `Pre-Tier 2 reallocation: Experts have scheduled since Tier 1. JDA Site A: ${sPre2.jdaA}/${aT1.jdaA} hrs (full). JDA Site B: ${sPre2.jdaB}/${aT1.jdaB} hrs (full). INTUIT Site A: ${sPre2.intA}/${aT1.intA} hrs — ${intAUnschedPre2} hrs still unscheduled. INTUIT Site B: ${sPre2.intB}/${intBAllocPre2} hrs (full). Tier 2 will fire at T-${t2Days}, releasing INTUIT's ${intAUnschedPre2} unscheduled hrs to JDA.`,
+    `Tier 2 fired at T-${t2Days}. INTUIT Site A released ${intT2Release} hrs to JDA: +${jdaAT2} hrs to Site A (${Math.round(JDA_A_SHARE*100)}% share) · +${jdaBT2} hr to Site B (${Math.round(JDA_B_SHARE*100)}% share). INTUIT Site A allocation reduced to ${aT2.intA} hrs (fully scheduled). JDA total allocation now ${aT2.jdaA + aT2.jdaB} hrs. All hours scheduled or newly available via Tier 2 reallocation.`,
+  ];
+  txt('status-msg', msgs[s]);
+}
+
+update();
+</script>
+</body>
+</html>
