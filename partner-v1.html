@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partner Scheduling — Phase 1: Partner-Level Reallocation</title>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+
+:root {
+  --bg:           #ffffff;
+  --bg2:          #f5f5f3;
+  --bg3:          #eeedea;
+  --border:       rgba(0,0,0,0.11);
+  --border2:      rgba(0,0,0,0.24);
+  --text:         #1a1a18;
+  --text2:        #5c5c58;
+  --text3:        #9a9a94;
+  --radius-md:    8px;
+  --radius-lg:    12px;
+  --blue:         #3B8BD4;
+  --blue-light:   #d0e8f8;
+  --green:        #5aac44;
+  --green-light:  #eaf3de;
+  --green-txt:    #27500A;
+  --amber:        #E8B84B;
+  --amber-light:  #fdf3dc;
+  --amber-txt:    #633806;
+  --teal:         #2A9D8F;
+  --teal-light:   #d6f0ed;
+  --teal-txt:     #14524c;
+  --purple:       #7a6ed4;
+  --purple-light: #f0eefb;
+  --purple-txt:   #3c3489;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#1e1e1c; --bg2:#272725; --bg3:#313130;
+    --border:rgba(255,255,255,0.10); --border2:rgba(255,255,255,0.22);
+    --text:#e8e6de; --text2:#a0a09a; --text3:#686864;
+    --blue:#5BA8E8; --blue-light:#042c53;
+    --green-light:#173404; --green-txt:#c0dd97;
+    --amber-light:#412402; --amber-txt:#FAC775;
+    --teal-light:#0d3330; --teal-txt:#a0e8e1;
+    --purple-light:#26215c; --purple-txt:#c4bff6;
+  }
+}
+
+body { font-family:var(--font); background:var(--bg); color:var(--text); padding:32px 40px; max-width:1020px; margin:0 auto; line-height:1.5; font-size:15px; }
+h1 { font-size:22px; font-weight:500; margin-bottom:4px; }
+.page-sub  { font-size:13px; color:var(--text2); margin-bottom:6px; }
+.page-desc { font-size:13px; color:var(--text2); margin-bottom:22px; line-height:1.6; max-width:740px; }
+.phase-pill { display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:4px 12px; border-radius:20px; background:var(--blue-light); color:var(--blue); letter-spacing:.04em; margin-bottom:12px; }
+
+/* ── per-partner rule config panel ── */
+.rules-panel { border:0.5px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:18px; }
+.rules-panel-header { padding:10px 16px; border-bottom:0.5px solid var(--border); background:var(--bg2); display:flex; align-items:center; gap:8px; }
+.rules-panel-title { font-size:12px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; }
+.rules-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; }
+.rule-col { padding:14px 16px; border-right:0.5px solid var(--border); }
+.rule-col:last-child { border-right:none; }
+.rule-partner-name { font-size:12px; font-weight:700; color:var(--text); margin-bottom:10px; }
+.ctrl-group { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+.ctrl-group:last-child { margin-bottom:0; }
+.ctrl-label { font-size:11px; font-weight:600; color:var(--text2); }
+.ctrl-sub   { font-size:10px; color:var(--text3); }
+.ctrl-row   { display:flex; align-items:center; gap:8px; margin-top:3px; }
+.ctrl-val   { font-size:12px; font-weight:700; min-width:36px; text-align:right; color:var(--text); }
+input[type=range] { flex:1; -webkit-appearance:none; appearance:none; height:4px; background:var(--bg3); border-radius:2px; outline:none; cursor:pointer; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; background:var(--blue); border-radius:50%; border:2px solid var(--bg); cursor:pointer; }
+input[type=range]::-moz-range-thumb { width:16px; height:16px; background:var(--blue); border-radius:50%; border:2px solid var(--bg); cursor:pointer; }
+
+/* ── timeline ── */
+.t-bar { display:flex; align-items:center; gap:10px; font-size:11px; color:var(--text2); margin-bottom:36px; }
+.timeline { flex:1; height:6px; background:var(--bg3); border:0.5px solid var(--border); border-radius:3px; position:relative; overflow:visible; }
+.tl-marker { position:absolute; top:-6px; width:2px; height:18px; border-radius:1px; pointer-events:none; }
+.tl-intuit { background:var(--blue); }
+.tl-jda    { background:var(--green); }
+.tl-magnit { background:var(--purple); }
+.tl-label  { position:absolute; font-size:10px; top:16px; transform:translateX(-50%); white-space:nowrap; pointer-events:none; font-weight:500; }
+
+/* ── step buttons ── */
+.step-buttons { display:flex; gap:8px; margin-bottom:16px; position:relative; z-index:2; }
+.step-btn { font-size:13px; padding:9px 20px; border:0.5px solid var(--border2); border-radius:var(--radius-md); background:var(--bg); color:var(--text); cursor:pointer; transition:background .12s, border-color .12s, color .12s; font-family:var(--font); }
+.step-btn:hover { background:var(--bg2); }
+.step-btn.active { border-color:var(--blue); background:var(--blue-light); color:var(--blue); font-weight:600; }
+
+/* ── status ── */
+.status-box { border:0.5px solid var(--border); border-radius:var(--radius-md); padding:13px 16px; margin-bottom:16px; }
+.status-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:5px; }
+.status-msg { font-size:13px; color:var(--text); line-height:1.6; }
+
+/* ── main section ── */
+.main-section { border:0.5px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:14px; }
+.main-header { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:0.5px solid var(--border); flex-wrap:wrap; }
+.step-badge { font-size:11px; font-weight:600; padding:3px 11px; border-radius:20px; letter-spacing:.03em; flex-shrink:0; }
+.badge-pre  { background:var(--bg3); color:var(--text2); }
+.badge-post { background:var(--green-light); color:var(--green-txt); }
+.section-label { font-size:14px; font-weight:500; color:var(--text); }
+.section-desc  { font-size:12px; color:var(--text2); margin-left:auto; text-align:right; max-width:360px; line-height:1.4; }
+.section-body  { padding:18px; }
+
+/* ── partner cards ── */
+.partners-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+@media(max-width:700px){ .partners-grid { grid-template-columns:1fr; } }
+.partner-card { background:var(--bg2); border:0.5px solid var(--border); border-radius:var(--radius-md); overflow:hidden; display:flex; flex-direction:column; }
+.partner-header { padding:11px 14px; border-bottom:0.5px solid var(--border); }
+.partner-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; }
+.partner-rule-tag { font-size:10px; color:var(--text3); }
+.partner-alloc-row { display:flex; justify-content:space-between; align-items:baseline; margin-top:3px; }
+.partner-alloc-label { font-size:11px; color:var(--text2); }
+.partner-alloc-val   { font-size:12px; font-weight:700; color:var(--text); }
+.partner-body { padding:14px; display:flex; flex-direction:column; gap:11px; flex:1; }
+
+/* ── dual bars ── */
+.bar-block { display:flex; flex-direction:column; gap:6px; }
+.bar-row { display:flex; align-items:center; gap:8px; }
+.bar-row-label { font-size:10px; color:var(--text3); width:68px; flex-shrink:0; text-align:right; line-height:1.3; }
+.bar-wrap { flex:1; position:relative; height:13px; border-radius:5px; overflow:hidden; background:var(--bg3); border:0.5px solid var(--border); }
+.bar-seg { position:absolute; top:0; height:100%; transition:width .45s ease, left .45s ease; }
+.seg-orig    { background:var(--blue); }
+.seg-recv    { background:var(--green); }
+.seg-sched   { background:var(--teal); }
+.seg-unsched { background:var(--amber); opacity:.55; }
+.bar-row-val { font-size:11px; color:var(--text2); width:88px; flex-shrink:0; text-align:right; white-space:nowrap; }
+
+/* ── flow chip ── */
+.flow-row { display:flex; padding-top:2px; }
+.flow-chip { font-size:10px; font-weight:500; padding:2px 9px; border-radius:10px; }
+.flow-release { background:var(--amber-light); color:var(--amber-txt); }
+.flow-recv    { background:var(--green-light);  color:var(--green-txt); }
+.flow-none    { background:var(--bg3); color:var(--text3); }
+
+/* ── audit chips ── */
+.change-log { display:flex; flex-wrap:wrap; gap:5px; min-height:18px; }
+.chip { font-size:10px; font-weight:500; padding:2px 8px; border-radius:10px; white-space:nowrap; }
+.chip-orig { background:var(--bg3); color:var(--text2); }
+.chip-lose { background:var(--amber-light); color:var(--amber-txt); }
+.chip-gain { background:var(--green-light); color:var(--green-txt); }
+.chip-pool { background:var(--purple-light); color:var(--purple-txt); }
+
+/* ── legend ── */
+.section-legend { display:flex; flex-wrap:wrap; gap:14px; padding:11px 18px; border-top:0.5px solid var(--border); background:var(--bg2); }
+.leg-item { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text2); }
+.leg-sw { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
+
+/* ── shared pool logic panel ── */
+.logic-panel { border:0.5px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:14px; }
+.logic-header { padding:11px 16px; border-bottom:0.5px solid var(--border); background:var(--bg2); display:flex; align-items:center; gap:8px; }
+.logic-title { font-size:12px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; }
+.logic-body { padding:16px 18px; display:flex; flex-direction:column; gap:12px; }
+
+.pool-flow { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:0; align-items:stretch; }
+.pool-step { background:var(--bg2); border:0.5px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; }
+.pool-arrow { display:flex; align-items:center; justify-content:center; padding:0 10px; font-size:18px; color:var(--text3); }
+.pool-step-num { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:6px; }
+.pool-step-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:6px; }
+.pool-rows { display:flex; flex-direction:column; gap:4px; }
+.pool-row { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:12px; }
+.pool-row-label { color:var(--text2); }
+.pool-row-val { font-weight:600; color:var(--text); white-space:nowrap; }
+.pool-row-val.neg { color:var(--amber-txt); }
+.pool-row-val.pos { color:var(--green-txt); }
+.pool-total-row { display:flex; justify-content:space-between; align-items:baseline; border-top:0.5px solid var(--border); padding-top:6px; margin-top:4px; font-size:12px; font-weight:700; }
+
+.logic-note { font-size:12px; color:var(--text2); line-height:1.6; padding:10px 14px; background:var(--bg2); border-radius:var(--radius-md); border:0.5px solid var(--border); }
+.logic-note strong { color:var(--text); }
+
+/* ── summary ── */
+hr.div { border:none; border-top:0.5px solid var(--border); margin:14px 0; }
+.summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+@media(max-width:640px){ .summary-grid { grid-template-columns:1fr 1fr; } }
+.sum-card { background:var(--bg2); border-radius:var(--radius-md); padding:12px 14px; }
+.sum-label { font-size:11px; color:var(--text2); margin-bottom:4px; }
+.sum-val   { font-size:22px; font-weight:500; color:var(--text); }
+.sum-sub   { font-size:11px; color:var(--text3); margin-top:2px; line-height:1.3; }
+</style>
+</head>
+<body>
+
+<div class="phase-pill">PHASE 1 — Partner-Level Reallocation</div>
+<h1>Unscheduled hours reallocation logic</h1>
+<p class="page-sub">UR-001 &nbsp;/&nbsp; UR-002</p>
+<p class="page-desc">Each partner has independently configurable release rules. When a rule fires, that partner's unscheduled hours are contributed to a shared pool. The pool is then distributed equally across all partners in the workgroup — giving each an identical share of the rebalanced capacity.</p>
+
+<!-- Per-partner rule config -->
+<div class="rules-panel">
+  <div class="rules-panel-header">
+    <span class="rules-panel-title">Release rules — per partner</span>
+  </div>
+  <div class="rules-grid">
+
+    <div class="rule-col">
+      <div class="rule-partner-name">INTUIT</div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Release threshold</span>
+        <span class="ctrl-sub">Days before day-of</span>
+        <div class="ctrl-row">
+          <input type="range" min="1" max="10" step="1" value="5" id="sl-intuit-days" oninput="update()">
+          <span class="ctrl-val" id="lbl-intuit-days">T-5</span>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Release %</span>
+        <span class="ctrl-sub">% of unscheduled hours</span>
+        <div class="ctrl-row">
+          <input type="range" min="0" max="100" step="10" value="100" id="sl-intuit-pct" oninput="update()">
+          <span class="ctrl-val" id="lbl-intuit-pct">100%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-col">
+      <div class="rule-partner-name">JDA</div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Release threshold</span>
+        <span class="ctrl-sub">Days before day-of</span>
+        <div class="ctrl-row">
+          <input type="range" min="1" max="10" step="1" value="5" id="sl-jda-days" oninput="update()">
+          <span class="ctrl-val" id="lbl-jda-days">T-5</span>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Release %</span>
+        <span class="ctrl-sub">% of unscheduled hours</span>
+        <div class="ctrl-row">
+          <input type="range" min="0" max="100" step="10" value="100" id="sl-jda-pct" oninput="update()">
+          <span class="ctrl-val" id="lbl-jda-pct">100%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-col">
+      <div class="rule-partner-name">MAGNIT</div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Release threshold</span>
+        <span class="ctrl-sub">Days before day-of</span>
+        <div class="ctrl-row">
+          <input type="range" min="1" max="10" step="1" value="5" id="sl-magnit-days" oninput="update()">
+          <span class="ctrl-val" id="lbl-magnit-days">T-5</span>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Release %</span>
+        <span class="ctrl-sub">% of unscheduled hours</span>
+        <div class="ctrl-row">
+          <input type="range" min="0" max="100" step="10" value="100" id="sl-magnit-pct" oninput="update()">
+          <span class="ctrl-val" id="lbl-magnit-pct">100%</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Timeline -->
+<div class="t-bar">
+  <span>Day-of</span>
+  <div class="timeline" id="timeline">
+    <div class="tl-marker tl-intuit" id="tl-intuit" style="left:58%">
+      <span class="tl-label" id="lbl-tl-intuit" style="color:var(--blue)">INTUIT T-5</span>
+    </div>
+    <div class="tl-marker tl-jda" id="tl-jda" style="left:58%">
+      <span class="tl-label" id="lbl-tl-jda" style="color:var(--green)">JDA T-5</span>
+    </div>
+    <div class="tl-marker tl-magnit" id="tl-magnit" style="left:58%">
+      <span class="tl-label" id="lbl-tl-magnit" style="color:var(--purple)">MAGNIT T-5</span>
+    </div>
+  </div>
+  <span>Planning horizon</span>
+</div>
+
+<!-- Step buttons -->
+<div class="step-buttons">
+  <button class="step-btn active" onclick="setStep(0)">Pre-reallocation</button>
+  <button class="step-btn" onclick="setStep(1)">Post-reallocation</button>
+</div>
+
+<!-- Status -->
+<div class="status-box">
+  <div class="status-title">Current state</div>
+  <div class="status-msg" id="status-msg">Loading…</div>
+</div>
+
+<!-- Main partner cards section -->
+<div class="main-section">
+  <div class="main-header">
+    <span class="step-badge badge-pre" id="main-badge">Baseline</span>
+    <span class="section-label" id="main-label">Pre-reallocation</span>
+    <span class="section-desc" id="main-desc">Original allocations and scheduling status before any release rules have fired</span>
+  </div>
+  <div class="section-body">
+    <div class="partners-grid">
+
+      <!-- INTUIT -->
+      <div class="partner-card">
+        <div class="partner-header">
+          <div class="partner-name">INTUIT</div>
+          <div class="partner-rule-tag" id="intuit-rule-tag">Rule: release 100% of unscheduled at T-5</div>
+          <div class="partner-alloc-row">
+            <span class="partner-alloc-label">Workgroup allocation</span>
+            <span class="partner-alloc-val" id="intuit-alloc-val">40 hrs</span>
+          </div>
+        </div>
+        <div class="partner-body">
+          <div class="bar-block">
+            <div class="bar-row">
+              <span class="bar-row-label">Allocation<br>source</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-orig" id="intuit-ao" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-recv" id="intuit-ar" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="intuit-alloc-bar-lbl">40 hrs total</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Scheduling<br>status</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-sched"  id="intuit-ss" style="left:0%;width:88%"></div>
+                <div class="bar-seg seg-unsched" id="intuit-su" style="left:88%;width:12%"></div>
+              </div>
+              <span class="bar-row-val" id="intuit-sched-lbl">35 / 40 scheduled</span>
+            </div>
+          </div>
+          <div class="flow-row"><span class="flow-chip flow-none" id="intuit-flow">5 hrs unscheduled</span></div>
+          <div class="change-log" id="intuit-chips"></div>
+        </div>
+      </div>
+
+      <!-- JDA -->
+      <div class="partner-card">
+        <div class="partner-header">
+          <div class="partner-name">JDA</div>
+          <div class="partner-rule-tag" id="jda-rule-tag">Rule: release 100% of unscheduled at T-5</div>
+          <div class="partner-alloc-row">
+            <span class="partner-alloc-label">Workgroup allocation</span>
+            <span class="partner-alloc-val" id="jda-alloc-val">35 hrs</span>
+          </div>
+        </div>
+        <div class="partner-body">
+          <div class="bar-block">
+            <div class="bar-row">
+              <span class="bar-row-label">Allocation<br>source</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-orig" id="jda-ao" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-recv" id="jda-ar" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="jda-alloc-bar-lbl">35 hrs total</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Scheduling<br>status</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-sched"  id="jda-ss" style="left:0%;width:57%"></div>
+                <div class="bar-seg seg-unsched" id="jda-su" style="left:57%;width:43%"></div>
+              </div>
+              <span class="bar-row-val" id="jda-sched-lbl">20 / 35 scheduled</span>
+            </div>
+          </div>
+          <div class="flow-row"><span class="flow-chip flow-release" id="jda-flow">15 hrs unscheduled</span></div>
+          <div class="change-log" id="jda-chips"></div>
+        </div>
+      </div>
+
+      <!-- MAGNIT -->
+      <div class="partner-card">
+        <div class="partner-header">
+          <div class="partner-name">MAGNIT</div>
+          <div class="partner-rule-tag" id="magnit-rule-tag">Rule: release 100% of unscheduled at T-5</div>
+          <div class="partner-alloc-row">
+            <span class="partner-alloc-label">Workgroup allocation</span>
+            <span class="partner-alloc-val" id="magnit-alloc-val">25 hrs</span>
+          </div>
+        </div>
+        <div class="partner-body">
+          <div class="bar-block">
+            <div class="bar-row">
+              <span class="bar-row-label">Allocation<br>source</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-orig" id="magnit-ao" style="left:0%;width:100%"></div>
+                <div class="bar-seg seg-recv" id="magnit-ar" style="left:100%;width:0%"></div>
+              </div>
+              <span class="bar-row-val" id="magnit-alloc-bar-lbl">25 hrs total</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-row-label">Scheduling<br>status</span>
+              <div class="bar-wrap">
+                <div class="bar-seg seg-sched"  id="magnit-ss" style="left:0%;width:60%"></div>
+                <div class="bar-seg seg-unsched" id="magnit-su" style="left:60%;width:40%"></div>
+              </div>
+              <span class="bar-row-val" id="magnit-sched-lbl">15 / 25 scheduled</span>
+            </div>
+          </div>
+          <div class="flow-row"><span class="flow-chip flow-release" id="magnit-flow">10 hrs unscheduled</span></div>
+          <div class="change-log" id="magnit-chips"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="section-legend">
+    <div class="leg-item"><div class="leg-sw" style="background:var(--blue)"></div>Original allocation</div>
+    <div class="leg-item"><div class="leg-sw" style="background:var(--green)"></div>Hours received from shared pool</div>
+    <div class="leg-item"><div class="leg-sw" style="background:var(--teal)"></div>Scheduled</div>
+    <div class="leg-item"><div class="leg-sw" style="background:var(--amber);opacity:.7"></div>Unscheduled / available</div>
+  </div>
+</div>
+
+<!-- Shared pool logic explanation -->
+<div class="logic-panel" id="logic-panel">
+  <div class="logic-header">
+    <span class="logic-title" id="logic-title">Shared pool reallocation logic</span>
+  </div>
+  <div class="logic-body">
+
+    <div class="pool-flow">
+      <!-- Step 1: contributions -->
+      <div class="pool-step">
+        <div class="pool-step-num">Step 1</div>
+        <div class="pool-step-title">Each partner contributes unscheduled hours</div>
+        <div class="pool-rows" id="pool-contributions"></div>
+      </div>
+      <div class="pool-arrow">→</div>
+      <!-- Step 2: shared pool -->
+      <div class="pool-step" style="border-color:var(--purple); background:var(--purple-light);">
+        <div class="pool-step-num" style="color:var(--purple-txt);">Shared pool</div>
+        <div class="pool-step-title" style="color:var(--purple-txt);" id="pool-total-label">30 hrs collected</div>
+        <div class="pool-rows" id="pool-breakdown"></div>
+        <div class="pool-total-row" id="pool-total-row" style="color:var(--purple-txt);"></div>
+      </div>
+      <div class="pool-arrow">→</div>
+      <!-- Step 3: equal redistribution -->
+      <div class="pool-step">
+        <div class="pool-step-num">Step 2</div>
+        <div class="pool-step-title">Pool distributed equally across all partners</div>
+        <div class="pool-rows" id="pool-redistribution"></div>
+      </div>
+    </div>
+
+    <div class="logic-note" id="logic-note">
+      Loading…
+    </div>
+
+  </div>
+</div>
+
+<hr class="div">
+
+<!-- Summary -->
+<div class="summary-grid">
+  <div class="sum-card">
+    <div class="sum-label">WG total allocation</div>
+    <div class="sum-val" id="sum-wg">100 hrs</div>
+    <div class="sum-sub">PROF1_EN workgroup</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Hours scheduled</div>
+    <div class="sum-val" id="sum-sched">70 hrs</div>
+    <div class="sum-sub" id="sum-sched-sub">70% of WG total</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Hours unscheduled</div>
+    <div class="sum-val" id="sum-unsched">30 hrs</div>
+    <div class="sum-sub" id="sum-unsched-sub">before reallocation</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Hours in pool</div>
+    <div class="sum-val" id="sum-pool">0 hrs</div>
+    <div class="sum-sub" id="sum-pool-sub">contributed &amp; redistributed</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+var gStep = 0;
+
+/* Fixed baseline data */
+var DATA = {
+  intuit: { origAlloc: 40, origSched: 35 },  /* 5 unscheduled  */
+  jda:    { origAlloc: 35, origSched: 20 },  /* 15 unscheduled */
+  magnit: { origAlloc: 25, origSched: 15 }   /* 10 unscheduled */
+};
+var PARTNERS = ['intuit', 'jda', 'magnit'];
+var NAMES    = { intuit:'INTUIT', jda:'JDA', magnit:'MAGNIT' };
+var WG_TOTAL = 100; /* 40+35+25 */
+
+function toPct(a, b) {
+  if (!b) return 0;
+  return Math.max(0, Math.min(100, Math.round(a / b * 100)));
+}
+
+function setSeg(id, w, l) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var left  = Math.max(0, Math.min(100, l));
+  var width = Math.max(0, Math.min(100 - left, w));
+  el.style.left  = left  + '%';
+  el.style.width = width + '%';
+}
+
+function setTxt(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setHTML(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.innerHTML = val;
+}
+
+function setFlow(id, text, cls) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'flow-chip ' + cls;
+}
+
+function setChips(id, items) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  for (var i = 0; i < items.length; i++) {
+    var sp = document.createElement('span');
+    sp.className = 'chip ' + items[i].cls;
+    sp.textContent = items[i].text;
+    el.appendChild(sp);
+  }
+}
+
+function makeRow(label, val, cls) {
+  return '<div class="pool-row"><span class="pool-row-label">' + label + '</span>'
+       + '<span class="pool-row-val ' + (cls||'') + '">' + val + '</span></div>';
+}
+
+function setStep(s) {
+  gStep = s;
+  var btns = document.querySelectorAll('.step-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('active', i === s);
+  }
+  update();
+}
+
+function update() {
+  /* read sliders */
+  var iDays = parseInt(document.getElementById('sl-intuit-days').value, 10);
+  var jDays = parseInt(document.getElementById('sl-jda-days').value, 10);
+  var mDays = parseInt(document.getElementById('sl-magnit-days').value, 10);
+  var iPct  = parseInt(document.getElementById('sl-intuit-pct').value, 10) / 100;
+  var jPct  = parseInt(document.getElementById('sl-jda-pct').value, 10) / 100;
+  var mPct  = parseInt(document.getElementById('sl-magnit-pct').value, 10) / 100;
+
+  /* update slider labels */
+  setTxt('lbl-intuit-days', 'T-' + iDays);
+  setTxt('lbl-jda-days',    'T-' + jDays);
+  setTxt('lbl-magnit-days', 'T-' + mDays);
+  setTxt('lbl-intuit-pct',  Math.round(iPct * 100) + '%');
+  setTxt('lbl-jda-pct',     Math.round(jPct * 100) + '%');
+  setTxt('lbl-magnit-pct',  Math.round(mPct * 100) + '%');
+
+  /* timeline markers — spread them slightly so labels don't collide */
+  var iPos = Math.min(90, Math.round(iDays / 12 * 90));
+  var jPos = Math.min(90, Math.round(jDays / 12 * 90));
+  var mPos = Math.min(90, Math.round(mDays / 12 * 90));
+  document.getElementById('tl-intuit').style.left = iPos + '%';
+  document.getElementById('tl-jda').style.left    = jPos + '%';
+  document.getElementById('tl-magnit').style.left = mPos + '%';
+  setTxt('lbl-tl-intuit', 'INTUIT T-' + iDays);
+  setTxt('lbl-tl-jda',    'JDA T-' + jDays);
+  setTxt('lbl-tl-magnit', 'MAGNIT T-' + mDays);
+
+  /* rule tags in card headers */
+  setTxt('intuit-rule-tag', 'Rule: release ' + Math.round(iPct*100) + '% of unscheduled at T-' + iDays);
+  setTxt('jda-rule-tag',    'Rule: release ' + Math.round(jPct*100) + '% of unscheduled at T-' + jDays);
+  setTxt('magnit-rule-tag', 'Rule: release ' + Math.round(mPct*100) + '% of unscheduled at T-' + mDays);
+
+  /* baseline unscheduled */
+  var iBaseUn = DATA.intuit.origAlloc - DATA.intuit.origSched;  /* 5  */
+  var jBaseUn = DATA.jda.origAlloc    - DATA.jda.origSched;     /* 15 */
+  var mBaseUn = DATA.magnit.origAlloc - DATA.magnit.origSched;  /* 10 */
+
+  /* how much each contributes to shared pool */
+  var iContrib = gStep >= 1 ? Math.round(iBaseUn * iPct) : 0;
+  var jContrib = gStep >= 1 ? Math.round(jBaseUn * jPct) : 0;
+  var mContrib = gStep >= 1 ? Math.round(mBaseUn * mPct) : 0;
+  var poolTotal = iContrib + jContrib + mContrib;
+
+  /* equal redistribution: each of the 3 partners gets poolTotal / 3 back */
+  var poolShare = poolTotal > 0 ? Math.round(poolTotal / 3) : 0;
+  /* handle rounding: give any remainder to first partner */
+  var iShare = poolShare;
+  var jShare = poolShare;
+  var mShare = poolTotal - iShare - jShare; /* absorbs rounding diff */
+
+  /* post-reallocation allocations:
+     original alloc − contributed + received from pool */
+  var iAlloc = DATA.intuit.origAlloc - (gStep >= 1 ? iContrib : 0) + (gStep >= 1 ? iShare : 0);
+  var jAlloc = DATA.jda.origAlloc    - (gStep >= 1 ? jContrib : 0) + (gStep >= 1 ? jShare : 0);
+  var mAlloc = DATA.magnit.origAlloc - (gStep >= 1 ? mContrib : 0) + (gStep >= 1 ? mShare : 0);
+
+  /* scheduled hours unchanged */
+  var iSched = DATA.intuit.origSched;
+  var jSched = DATA.jda.origSched;
+  var mSched = DATA.magnit.origSched;
+
+  var iUnsched = iAlloc - iSched;
+  var jUnsched = jAlloc - jSched;
+  var mUnsched = mAlloc - mSched;
+
+  var wgTotal   = iAlloc + jAlloc + mAlloc;
+  var totSched  = iSched + jSched + mSched;
+  var totUnsched = wgTotal - totSched;
+
+  /* ── section header ── */
+  var badge = document.getElementById('main-badge');
+  if (gStep === 0) {
+    badge.textContent = 'Baseline';
+    badge.className = 'step-badge badge-pre';
+    setTxt('main-label', 'Pre-reallocation');
+    setTxt('main-desc', 'Original allocations and scheduling status before any release rules fire');
+  } else {
+    badge.textContent = 'Post-rule';
+    badge.className = 'step-badge badge-post';
+    setTxt('main-label', 'Post-reallocation — shared pool distributed equally');
+    setTxt('main-desc', poolTotal + ' hrs collected in shared pool · ' + poolShare + ' hrs returned to each partner');
+  }
+
+  /* ── INTUIT bars & chips ── */
+  setSeg('intuit-ao', toPct(DATA.intuit.origAlloc, iAlloc), 0);
+  setSeg('intuit-ar', toPct(gStep >= 1 ? iShare : 0, iAlloc), toPct(DATA.intuit.origAlloc - (gStep >= 1 ? iContrib : 0), iAlloc));
+  setSeg('intuit-ss', toPct(iSched, iAlloc), 0);
+  setSeg('intuit-su', Math.max(0, 100 - toPct(iSched, iAlloc)), toPct(iSched, iAlloc));
+  setTxt('intuit-alloc-val',     iAlloc + ' hrs');
+  setTxt('intuit-alloc-bar-lbl', iAlloc + ' hrs total');
+  setTxt('intuit-sched-lbl',     iSched + ' / ' + iAlloc + ' scheduled');
+  if (gStep === 0) {
+    setFlow('intuit-flow', iBaseUn + ' hrs unscheduled', iBaseUn > 0 ? 'flow-release' : 'flow-none');
+    setChips('intuit-chips', [
+      { text:'Allocation: ' + DATA.intuit.origAlloc + ' hrs · ' + iSched + ' scheduled · ' + iBaseUn + ' unscheduled', cls:'chip-orig' },
+      { text:'Will contribute ' + Math.round(iBaseUn*iPct) + ' hrs to shared pool at T-' + iDays, cls:'chip-lose' }
+    ]);
+  } else {
+    setFlow('intuit-flow', iContrib > 0 ? '−'+iContrib+' to pool, +'+iShare+' returned' : 'No change', iContrib > 0 ? 'flow-recv' : 'flow-none');
+    setChips('intuit-chips', [
+      { text:'Original: ' + DATA.intuit.origAlloc + ' hrs', cls:'chip-orig' },
+      { text:'−' + iContrib + ' hrs released to shared pool', cls:'chip-lose' },
+      { text:'+' + iShare + ' hrs returned from shared pool (equal share)', cls:'chip-gain' },
+      { text:'New allocation: ' + iAlloc + ' hrs · ' + iUnsched + ' hrs available', cls:'chip-pool' }
+    ]);
+  }
+
+  /* ── JDA bars & chips ── */
+  setSeg('jda-ao', toPct(DATA.jda.origAlloc - (gStep >= 1 ? jContrib : 0), jAlloc), 0);
+  setSeg('jda-ar', toPct(gStep >= 1 ? jShare : 0, jAlloc), toPct(DATA.jda.origAlloc - (gStep >= 1 ? jContrib : 0), jAlloc));
+  setSeg('jda-ss', toPct(jSched, jAlloc), 0);
+  setSeg('jda-su', Math.max(0, 100 - toPct(jSched, jAlloc)), toPct(jSched, jAlloc));
+  setTxt('jda-alloc-val',     jAlloc + ' hrs');
+  setTxt('jda-alloc-bar-lbl', jAlloc + ' hrs total');
+  setTxt('jda-sched-lbl',     jSched + ' / ' + jAlloc + ' scheduled');
+  if (gStep === 0) {
+    setFlow('jda-flow', jBaseUn + ' hrs unscheduled', jBaseUn > 0 ? 'flow-release' : 'flow-none');
+    setChips('jda-chips', [
+      { text:'Allocation: ' + DATA.jda.origAlloc + ' hrs · ' + jSched + ' scheduled · ' + jBaseUn + ' unscheduled', cls:'chip-orig' },
+      { text:'Will contribute ' + Math.round(jBaseUn*jPct) + ' hrs to shared pool at T-' + jDays, cls:'chip-lose' }
+    ]);
+  } else {
+    setFlow('jda-flow', jContrib > 0 ? '−'+jContrib+' to pool, +'+jShare+' returned' : 'No change', jContrib > 0 ? 'flow-recv' : 'flow-none');
+    setChips('jda-chips', [
+      { text:'Original: ' + DATA.jda.origAlloc + ' hrs', cls:'chip-orig' },
+      { text:'−' + jContrib + ' hrs released to shared pool', cls:'chip-lose' },
+      { text:'+' + jShare + ' hrs returned from shared pool (equal share)', cls:'chip-gain' },
+      { text:'New allocation: ' + jAlloc + ' hrs · ' + jUnsched + ' hrs available', cls:'chip-pool' }
+    ]);
+  }
+
+  /* ── MAGNIT bars & chips ── */
+  setSeg('magnit-ao', toPct(DATA.magnit.origAlloc - (gStep >= 1 ? mContrib : 0), mAlloc), 0);
+  setSeg('magnit-ar', toPct(gStep >= 1 ? mShare : 0, mAlloc), toPct(DATA.magnit.origAlloc - (gStep >= 1 ? mContrib : 0), mAlloc));
+  setSeg('magnit-ss', toPct(mSched, mAlloc), 0);
+  setSeg('magnit-su', Math.max(0, 100 - toPct(mSched, mAlloc)), toPct(mSched, mAlloc));
+  setTxt('magnit-alloc-val',     mAlloc + ' hrs');
+  setTxt('magnit-alloc-bar-lbl', mAlloc + ' hrs total');
+  setTxt('magnit-sched-lbl',     mSched + ' / ' + mAlloc + ' scheduled');
+  if (gStep === 0) {
+    setFlow('magnit-flow', mBaseUn + ' hrs unscheduled', mBaseUn > 0 ? 'flow-release' : 'flow-none');
+    setChips('magnit-chips', [
+      { text:'Allocation: ' + DATA.magnit.origAlloc + ' hrs · ' + mSched + ' scheduled · ' + mBaseUn + ' unscheduled', cls:'chip-orig' },
+      { text:'Will contribute ' + Math.round(mBaseUn*mPct) + ' hrs to shared pool at T-' + mDays, cls:'chip-lose' }
+    ]);
+  } else {
+    setFlow('magnit-flow', mContrib > 0 ? '−'+mContrib+' to pool, +'+mShare+' returned' : 'No change', mContrib > 0 ? 'flow-recv' : 'flow-none');
+    setChips('magnit-chips', [
+      { text:'Original: ' + DATA.magnit.origAlloc + ' hrs', cls:'chip-orig' },
+      { text:'−' + mContrib + ' hrs released to shared pool', cls:'chip-lose' },
+      { text:'+' + mShare + ' hrs returned from shared pool (equal share)', cls:'chip-gain' },
+      { text:'New allocation: ' + mAlloc + ' hrs · ' + mUnsched + ' hrs available', cls:'chip-pool' }
+    ]);
+  }
+
+  /* ── Logic panel ── */
+  setTxt('logic-title', gStep === 0 ? 'Shared pool reallocation logic — preview (pre-fire)' : 'Shared pool reallocation logic — applied');
+
+  /* Step 1: contributions */
+  var contribHTML = makeRow('INTUIT releases', (gStep >= 1 ? iContrib : Math.round(iBaseUn*iPct)) + ' hrs', gStep >= 1 ? 'neg' : '');
+  contribHTML    += makeRow('JDA releases',    (gStep >= 1 ? jContrib : Math.round(jBaseUn*jPct)) + ' hrs', gStep >= 1 ? 'neg' : '');
+  contribHTML    += makeRow('MAGNIT releases', (gStep >= 1 ? mContrib : Math.round(mBaseUn*mPct)) + ' hrs', gStep >= 1 ? 'neg' : '');
+  setHTML('pool-contributions', contribHTML);
+
+  /* Pool total */
+  var displayPool = gStep >= 1 ? poolTotal : (Math.round(iBaseUn*iPct) + Math.round(jBaseUn*jPct) + Math.round(mBaseUn*mPct));
+  setTxt('pool-total-label', displayPool + ' hrs in shared pool');
+  var brkHTML = makeRow('From INTUIT', (gStep >= 1 ? iContrib : Math.round(iBaseUn*iPct)) + ' hrs', '');
+  brkHTML    += makeRow('From JDA',    (gStep >= 1 ? jContrib : Math.round(jBaseUn*jPct)) + ' hrs', '');
+  brkHTML    += makeRow('From MAGNIT', (gStep >= 1 ? mContrib : Math.round(mBaseUn*mPct)) + ' hrs', '');
+  setHTML('pool-breakdown', brkHTML);
+  setHTML('pool-total-row', '<span>Total</span><span>' + displayPool + ' hrs ÷ 3 = ' + Math.round(displayPool/3) + ' hrs each</span>');
+
+  /* Step 2: redistribution */
+  var redHTML = makeRow('INTUIT receives', (gStep >= 1 ? iShare : Math.round(displayPool/3)) + ' hrs', gStep >= 1 ? 'pos' : '');
+  redHTML    += makeRow('JDA receives',    (gStep >= 1 ? jShare : Math.round(displayPool/3)) + ' hrs', gStep >= 1 ? 'pos' : '');
+  redHTML    += makeRow('MAGNIT receives', (gStep >= 1 ? mShare : displayPool - 2*Math.round(displayPool/3)) + ' hrs', gStep >= 1 ? 'pos' : '');
+  setHTML('pool-redistribution', redHTML);
+
+  /* Logic note */
+  var note;
+  if (gStep === 0) {
+    note = '<strong>How this works:</strong> At the configured threshold for each partner, their unscheduled hours are released into a shared workgroup pool. '
+         + 'The pool is then divided equally across all ' + PARTNERS.length + ' partners regardless of how much each contributed. '
+         + 'This ensures that partners with lower scheduling activity do not permanently lose capacity — instead, all partners get an equal share of the rebalanced total. '
+         + 'With the current settings, ' + displayPool + ' hrs will be collected and each partner will receive ' + Math.round(displayPool/3) + ' hrs back.';
+  } else if (poolTotal === 0) {
+    note = '<strong>No hours were released</strong> — all release percentages are set to 0%.';
+  } else {
+    note = '<strong>Result:</strong> ' + poolTotal + ' hrs were collected from the shared pool '
+         + '(INTUIT ' + iContrib + ' + JDA ' + jContrib + ' + MAGNIT ' + mContrib + '). '
+         + 'The pool was divided equally: each partner receives ' + poolShare + ' hrs back. '
+         + 'Net effect: INTUIT ' + (iShare - iContrib >= 0 ? '+' : '') + (iShare - iContrib) + ' hrs, '
+         + 'JDA ' + (jShare - jContrib >= 0 ? '+' : '') + (jShare - jContrib) + ' hrs, '
+         + 'MAGNIT ' + (mShare - mContrib >= 0 ? '+' : '') + (mShare - mContrib) + ' hrs. '
+         + 'Partners with more unscheduled hours effectively subsidise those with fewer — the mechanism normalises availability across the workgroup.';
+  }
+  setHTML('logic-note', note);
+
+  /* ── Summary ── */
+  setTxt('sum-wg',       wgTotal + ' hrs');
+  setTxt('sum-sched',    totSched + ' hrs');
+  setTxt('sum-sched-sub', toPct(totSched, wgTotal) + '% of ' + wgTotal + ' hr WG total');
+  setTxt('sum-unsched',  totUnsched + ' hrs');
+  setTxt('sum-unsched-sub', gStep === 0 ? 'before rules fire' : 'after reallocation');
+  setTxt('sum-pool',     (gStep >= 1 ? poolTotal : 0) + ' hrs');
+  setTxt('sum-pool-sub', gStep >= 1 ? 'collected and redistributed equally' : 'no rules fired yet');
+
+  /* ── Status ── */
+  var msg;
+  if (gStep === 0) {
+    msg = 'Pre-reallocation: INTUIT has ' + iBaseUn + ' hrs unscheduled (releases ' + Math.round(iBaseUn*iPct) + ' hrs at T-' + iDays + '). '
+        + 'JDA has ' + jBaseUn + ' hrs unscheduled (releases ' + Math.round(jBaseUn*jPct) + ' hrs at T-' + jDays + '). '
+        + 'MAGNIT has ' + mBaseUn + ' hrs unscheduled (releases ' + Math.round(mBaseUn*mPct) + ' hrs at T-' + mDays + '). '
+        + 'Total pool when all rules fire: ' + displayPool + ' hrs, distributed equally at ' + Math.round(displayPool/3) + ' hrs per partner.';
+  } else if (poolTotal === 0) {
+    msg = 'All release percentages are 0% — no hours were contributed to the shared pool.';
+  } else {
+    msg = 'Rules fired. ' + poolTotal + ' hrs collected into shared pool '
+        + '(' + iContrib + ' from INTUIT + ' + jContrib + ' from JDA + ' + mContrib + ' from MAGNIT). '
+        + 'Pool distributed equally: each partner receives ' + poolShare + ' hrs. '
+        + 'Final allocations: INTUIT ' + iAlloc + ' hrs (was ' + DATA.intuit.origAlloc + '), '
+        + 'JDA ' + jAlloc + ' hrs (was ' + DATA.jda.origAlloc + '), '
+        + 'MAGNIT ' + mAlloc + ' hrs (was ' + DATA.magnit.origAlloc + ').';
+  }
+  setTxt('status-msg', msg);
+}
+
+update();
+</script>
+</body>
+</html>
